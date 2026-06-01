@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Strojarski Kviz — Word Search</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{
+  font-family:'Courier New',monospace;
+  background:#0d1117;
+  color:#e0e8f0;
+  min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;
+  padding:10px 6px 50px;
+  user-select:none;
+}
+
+h1{
+  font-family:Georgia,serif;
+  font-size:clamp(13px,3.8vw,20px);
+  font-weight:normal;
+  letter-spacing:0.1em;
+  color:#b8cee8;
+  text-align:center;
+  margin-bottom:2px;
+}
+.sub{
+  font-size:clamp(9px,2.2vw,11px);
+  color:#4a5a7a;
+  text-align:center;
+  margin-bottom:10px;
+  letter-spacing:0.05em;
+}
+
+/* ── TABS ── */
+.tabs{display:flex;gap:6px;margin-bottom:10px}
+.tab{
+  padding:6px 14px;
+  font-family:'Courier New',monospace;
+  font-size:clamp(10px,2.5vw,12px);
+  letter-spacing:0.07em;
+  border:1px solid #2a3a5a;
+  border-radius:4px;
+  background:none;color:#5a7aaa;
+  cursor:pointer;transition:all .2s;
+}
+.tab.active{background:#1a2a4a;border-color:#5a8ad0;color:#a0c4f0}
+
+/* ── SCORE ── */
+#score-bar{
+  font-size:12px;color:#5a7a9a;
+  margin-bottom:8px;
+}
+#score-bar b{color:#7ec8a0}
+
+/* ── GRID ── */
+#grid-wrap{overflow-x:auto;width:100%;max-width:520px}
+#grid{
+  display:grid;
+  gap:1px;
+  background:#1a2030;
+  border:1px solid #2a3050;
+  border-radius:6px;
+  overflow:hidden;
+  touch-action:none;
+  width:100%;
+}
+.cell{
+  background:#0f131c;
+  display:flex;align-items:center;justify-content:center;
+  font-size:clamp(8px,2vw,13px);
+  font-weight:bold;
+  color:#5a7090;
+  cursor:pointer;
+  transition:background .08s,color .08s;
+  aspect-ratio:1;
+  position:relative;
+}
+.cell.hover {background:#1e3d5a;color:#fff}
+
+/* solution mode layers */
+.cell.sol-h {background:#0e2535;color:#4aa0d0}
+.cell.sol-v {background:#0e2520;color:#4ad090}
+.cell.sol-d {background:#25150e;color:#d0904a}
+
+/* found colors (6 rotating) */
+.cell.f0{background:#0e2a1a;color:#6ed8a0}
+.cell.f1{background:#1a200e;color:#a0d860}
+.cell.f2{background:#200e1a;color:#d860a0}
+.cell.f3{background:#0e1a2a;color:#60a0d8}
+.cell.f4{background:#201a0e;color:#d8a060}
+.cell.f5{background:#1a0e20;color:#a060d8}
+
+/* ── WORD LIST ── */
+#word-list{
+  margin-top:12px;
+  width:100%;max-width:520px;
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(116px,1fr));
+  gap:4px;
+}
+.chip{
+  background:#10141e;
+  border:1px solid #222840;
+  border-radius:4px;
+  padding:4px 7px;
+  font-size:clamp(8px,2.2vw,11px);
+  letter-spacing:0.06em;
+  color:#5a7090;
+  text-align:center;
+  transition:all .25s;
+  cursor:default;
+}
+.chip.done{
+  background:#0a1a10;border-color:#1a4828;
+  color:#6ed8a0;text-decoration:line-through;
+  text-decoration-color:#2a5838;
+}
+.chip.hint-hl{
+  animation:pulse .5s 3;
+}
+@keyframes pulse{0%,100%{border-color:#222840}50%{border-color:#d8a060}}
+
+/* ── SOLUTION LEGEND ── */
+#legend{
+  display:none;
+  margin-top:10px;
+  width:100%;max-width:520px;
+  gap:10px;
+  justify-content:center;
+  flex-wrap:wrap;
+  font-size:11px;
+}
+.leg{display:flex;align-items:center;gap:5px;color:#6a80a0}
+.leg-box{width:14px;height:14px;border-radius:2px}
+.leg-h{background:#0e2535}
+.leg-v{background:#0e2520}
+.leg-d{background:#25150e}
+
+/* ── BUTTONS ── */
+.btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;justify-content:center}
+.btn{
+  background:none;
+  border:1px solid #2a3a5a;
+  color:#5a7aaa;
+  font-family:'Courier New',monospace;
+  font-size:11px;letter-spacing:0.07em;
+  padding:6px 13px;border-radius:4px;
+  cursor:pointer;transition:all .2s;
+}
+.btn:hover{border-color:#4a6aaa;color:#90b0e0}
+
+#congrats{
+  display:none;margin-top:14px;
+  font-family:Georgia,serif;
+  font-size:18px;color:#7ec8a0;text-align:center;
+}
+</style>
+</head>
+<body>
+
+<h1>⚙ STROJARSKI KVIZ</h1>
+<p class="sub">Pronađi skrivenu riječ · → desno · ↓ dolje · ↘ dijagonalno</p>
+
+<div class="tabs">
+  <button class="tab active" onclick="setMode('play')">▶ Igraj</button>
+  <button class="tab" onclick="setMode('solution')">🔍 Rješenja</button>
+</div>
+
+<div id="score-bar">Pronađeno: <b id="cnt">0</b> / 30</div>
+
+<div id="grid-wrap"><div id="grid"></div></div>
+
+<div id="legend">
+  <div class="leg"><div class="leg-box leg-h"></div>→ horizontalno</div>
+  <div class="leg"><div class="leg-box leg-v"></div>↓ vertikalno</div>
+  <div class="leg"><div class="leg-box leg-d"></div>↘ dijagonalno</div>
+</div>
+
+<div id="word-list"></div>
+
+<div class="btns">
+  <button class="btn" onclick="hint()">💡 Hint</button>
+  <button class="btn" onclick="resetGame()">↺ Reset</button>
+</div>
+
+<div id="congrats">🎉 Bravo! Sve pronađeno!</div>
+
+<script>
+const DATA = {"grid":[["M","I","K","R","O","P","O","K","R","E","T","O","D","S","U","V","N","A","C","R","T","F"],["U","D","G","D","U","A","O","J","T","O","L","E","R","A","N","C","I","J","A","U","E","P"],["I","I","J","I","A","H","K","J","U","E","L","B","R","U","S","E","N","J","E","E","E","U"],["E","J","U","O","U","O","I","O","E","L","Z","U","I","P","O","S","M","A","K","O","F","O"],["E","A","Z","A","B","F","P","E","R","C","H","E","C","K","L","I","S","T","A","G","R","P"],["E","G","J","E","O","J","M","R","R","E","C","E","P","C","I","J","A","J","I","U","E","O"],["T","N","F","G","C","T","K","A","E","J","K","M","F","G","G","K","I","C","S","A","K","D"],["O","O","N","E","L","U","A","A","F","V","H","T","V","V","G","V","P","I","U","I","L","M"],["K","Z","U","R","O","O","I","E","P","A","E","S","I","I","C","A","N","K","O","O","A","A"],["A","A","H","O","E","G","D","K","V","A","K","N","A","V","I","R","J","L","S","A","M","Z"],["R","A","U","N","Z","P","I","A","L","I","C","T","T","I","N","A","H","U","A","O","A","I"],["E","A","D","U","S","O","C","I","N","O","D","I","U","I","O","O","S","S","S","P","C","V"],["N","O","E","A","B","L","J","Z","M","J","K","E","T","R","V","U","T","A","T","E","I","A"],["J","E","O","J","F","U","I","E","I","B","E","B","N","E","A","N","I","O","A","R","J","N"],["E","E","I","U","Z","P","G","N","I","E","O","V","R","C","T","C","O","K","V","A","A","J"],["I","T","G","B","A","R","O","B","J","A","C","L","N","I","I","T","O","C","N","C","L","E"],["H","E","S","O","E","O","Z","A","M","U","I","E","G","Z","O","J","M","A","I","I","I","U"],["E","B","E","A","L","I","T","A","D","L","T","J","P","H","E","H","A","C","C","J","L","O"],["H","A","R","I","O","Z","A","A","H","H","O","N","A","N","J","E","S","E","A","A","E","C"],["A","A","I","O","N","V","C","I","G","V","I","A","O","A","K","O","N","T","R","O","L","A"],["S","A","J","Z","O","O","H","R","A","P","A","V","O","S","T","Z","A","S","T","O","J","T"],["H","D","A","O","A","D","O","U","G","I","E","T","I","O","H","M","K","A","N","B","A","N"]],"placed":["POLUPROIZVOD","PODMAZIVANJE","MIKROPOKRET","PREVENTIVNO","TOLERANCIJA","REKLAMACIJA","KOREKTIVNO","SASTAVNICA","EVIDENCIJA","CHECKLISTA","OPERACIJA","HRAPAVOST","TOKARENJE","RECEPCIJA","DIJAGNOZA","KAPACITET","GLODANJE","BRUSENJE","KONTROLA","HONANJE","FAKTURA","KAIZEN","KANBAN","ZAHVAT","SERIJA","ZASTOJ","CIKLUS","POSMAK","NACRT","KVAR"],"solutions":{"POLUPROIZVOD":{"r":10,"c":5,"dr":1,"dc":0,"len":12},"PODMAZIVANJE":{"r":4,"c":21,"dr":1,"dc":0,"len":12},"MIKROPOKRET":{"r":0,"c":0,"dr":0,"dc":1,"len":11},"PREVENTIVNO":{"r":4,"c":6,"dr":1,"dc":1,"len":11},"TOLERANCIJA":{"r":1,"c":8,"dr":0,"dc":1,"len":11},"REKLAMACIJA":{"r":4,"c":20,"dr":1,"dc":0,"len":11},"KOREKTIVNO":{"r":2,"c":6,"dr":1,"dc":1,"len":10},"SASTAVNICA":{"r":9,"c":18,"dr":1,"dc":0,"len":10},"EVIDENCIJA":{"r":8,"c":7,"dr":1,"dc":1,"len":10},"CHECKLISTA":{"r":4,"c":9,"dr":0,"dc":1,"len":10},"OPERACIJA":{"r":10,"c":19,"dr":1,"dc":0,"len":9},"HRAPAVOST":{"r":20,"c":6,"dr":0,"dc":1,"len":9},"TOKARENJE":{"r":6,"c":0,"dr":1,"dc":0,"len":9},"RECEPCIJA":{"r":5,"c":8,"dr":0,"dc":1,"len":9},"DIJAGNOZA":{"r":1,"c":1,"dr":1,"dc":0,"len":9},"KAPACITET":{"r":6,"c":6,"dr":1,"dc":1,"len":9},"GLODANJE":{"r":6,"c":3,"dr":1,"dc":1,"len":8},"BRUSENJE":{"r":2,"c":11,"dr":0,"dc":1,"len":8},"KONTROLA":{"r":19,"c":14,"dr":0,"dc":1,"len":8},"HONANJE":{"r":18,"c":9,"dr":0,"dc":1,"len":7},"FAKTURA":{"r":7,"c":8,"dr":1,"dc":1,"len":7},"KAIZEN":{"r":9,"c":7,"dr":1,"dc":0,"len":6},"KANBAN":{"r":21,"c":16,"dr":0,"dc":1,"len":6},"ZAHVAT":{"r":16,"c":6,"dr":1,"dc":1,"len":6},"SERIJA":{"r":16,"c":2,"dr":1,"dc":0,"len":6},"ZASTOJ":{"r":20,"c":15,"dr":0,"dc":1,"len":6},"CIKLUS":{"r":6,"c":17,"dr":1,"dc":0,"len":6},"POSMAK":{"r":3,"c":13,"dr":0,"dc":1,"len":6},"NACRT":{"r":0,"c":16,"dr":0,"dc":1,"len":5},"KVAR":{"r":6,"c":15,"dr":1,"dc":0,"len":4}},"size":22};
+
+const SIZE = DATA.size;
+const grid = DATA.grid;
+const placed = DATA.placed;
+const solutions = DATA.solutions;
+
+const COLORS = ['f0','f1','f2','f3','f4','f5'];
+const DIR_CLASS = {
+  '0,1':'sol-h',
+  '1,0':'sol-v',
+  '1,1':'sol-d'
+};
+
+let mode = 'play';
+let foundWords = new Set();
+let colorIdx = 0;
+let selecting = false;
+let startCell = null;
+let currentHighlight = [];
+
+// Build grid DOM
+const gridEl = document.getElementById('grid');
+gridEl.style.gridTemplateColumns = `repeat(${SIZE},1fr)`;
+const cells = [];
+for (let r=0;r<SIZE;r++) {
+  cells[r]=[];
+  for (let c=0;c<SIZE;c++) {
+    const el = document.createElement('div');
+    el.className='cell';
+    el.textContent=grid[r][c];
+    el.dataset.r=r; el.dataset.c=c;
+    gridEl.appendChild(el);
+    cells[r][c]=el;
+  }
+}
+
+// Word chips
+const wordListEl = document.getElementById('word-list');
+const chips = {};
+for (const w of placed) {
+  const chip = document.createElement('div');
+  chip.className='chip';
+  chip.textContent=w;
+  chip.id='chip-'+w;
+  wordListEl.appendChild(chip);
+  chips[w]=chip;
+}
+
+// ── MODE ──
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active', (i===0&&m==='play')||(i===1&&m==='solution')));
+  const legend = document.getElementById('legend');
+  if (m === 'solution') {
+    legend.style.display='flex';
+    applySolution();
+  } else {
+    legend.style.display='none';
+    removeSolution();
+  }
+}
+
+function applySolution() {
+  for (const w of placed) {
+    const sol = solutions[w];
+    if (!sol) continue;
+    const cls = DIR_CLASS[`${sol.dr},${sol.dc}`];
+    for (let i=0;i<sol.len;i++) {
+      const el = cells[sol.r+i*sol.dr][sol.c+i*sol.dc];
+      if (!el.className.includes('f')) { // don't overwrite found
+        el.classList.remove('sol-h','sol-v','sol-d');
+        el.classList.add(cls);
+      }
+    }
+  }
+}
+
+function removeSolution() {
+  for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++)
+    cells[r][c].classList.remove('sol-h','sol-v','sol-d');
+}
+
+// ── DRAG SELECTION ──
+function cellAt(el) {
+  if (!el||!el.dataset.r) return null;
+  return {r:+el.dataset.r, c:+el.dataset.c};
+}
+
+// Only allow →, ↓, ↘
+function getLine(a,b) {
+  const dr=b.r-a.r, dc=b.c-a.c;
+  if (dr===0&&dc===0) return [a];
+  // horizontal
+  if (dr===0&&dc>0) { const l=[]; for(let i=0;i<=dc;i++) l.push({r:a.r,c:a.c+i}); return l; }
+  // vertical
+  if (dc===0&&dr>0) { const l=[]; for(let i=0;i<=dr;i++) l.push({r:a.r+i,c:a.c}); return l; }
+  // diagonal ↘ only
+  if (dr>0&&dc>0&&dr===dc) { const l=[]; for(let i=0;i<=dr;i++) l.push({r:a.r+i,c:a.c+i}); return l; }
+  return []; // invalid direction
+}
+
+function clearHover() {
+  for (const {r,c} of currentHighlight)
+    if (!cells[r][c].className.includes('f')) cells[r][c].classList.remove('hover');
+  currentHighlight=[];
+}
+
+function highlightLine(a,b) {
+  clearHover();
+  const line=getLine(a,b);
+  currentHighlight=line;
+  for (const {r,c} of line)
+    if (!cells[r][c].className.includes('f')) cells[r][c].classList.add('hover');
+}
+
+function norm(w){return w.toUpperCase().replace(/Š/g,'S').replace(/Č/g,'C').replace(/Ć/g,'C').replace(/Ž/g,'Z').replace(/Đ/g,'D');}
+
+function checkWord(line) {
+  const w = line.map(({r,c})=>grid[r][c]).join('');
+  for (const word of placed) {
+    if (foundWords.has(word)) continue;
+    if (norm(word)===w) return word;
+  }
+  return null;
+}
+
+function markFound(word, line) {
+  if (foundWords.has(word)) return;
+  foundWords.add(word);
+  const cls = COLORS[colorIdx%COLORS.length]; colorIdx++;
+  for (const {r,c} of line) {
+    cells[r][c].classList.remove('hover','sol-h','sol-v','sol-d');
+    ['f0','f1','f2','f3','f4','f5'].forEach(f=>cells[r][c].classList.remove(f));
+    cells[r][c].classList.add(cls);
+  }
+  chips[word].classList.add('done');
+  document.getElementById('cnt').textContent=foundWords.size;
+  if (foundWords.size===placed.length) document.getElementById('congrats').style.display='block';
+}
+
+function getEventCell(e) {
+  const touch=e.touches?e.touches[0]:e;
+  const el=document.elementFromPoint(touch.clientX,touch.clientY);
+  return el&&el.classList.contains('cell')?el:null;
+}
+
+gridEl.addEventListener('mousedown',e=>{
+  if (mode!=='play') return;
+  const pos=cellAt(e.target); if (!pos) return;
+  selecting=true; startCell=pos; currentHighlight=[];
+});
+gridEl.addEventListener('mousemove',e=>{
+  if (!selecting) return;
+  const pos=cellAt(e.target); if (!pos) return;
+  highlightLine(startCell,pos);
+});
+gridEl.addEventListener('mouseup',e=>{
+  if (!selecting) return; selecting=false;
+  const pos=cellAt(e.target)||startCell;
+  const line=getLine(startCell,pos);
+  const word=checkWord(line);
+  if (word) markFound(word,line); else clearHover();
+  startCell=null;
+});
+gridEl.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  if (mode!=='play') return;
+  const el=getEventCell(e); const pos=cellAt(el); if (!pos) return;
+  selecting=true; startCell=pos; currentHighlight=[];
+},{passive:false});
+gridEl.addEventListener('touchmove',e=>{
+  e.preventDefault(); if (!selecting) return;
+  const el=getEventCell(e); const pos=cellAt(el); if (!pos) return;
+  highlightLine(startCell,pos);
+},{passive:false});
+gridEl.addEventListener('touchend',e=>{
+  e.preventDefault(); if (!selecting) return; selecting=false;
+  const line=[...currentHighlight];
+  const word=checkWord(line);
+  if (word) markFound(word,line); else clearHover();
+  startCell=null;
+},{passive:false});
+
+// ── HINT ──
+let hintIdx=0;
+function hint() {
+  const remaining=placed.filter(w=>!foundWords.has(w));
+  if (!remaining.length) return;
+  const word=remaining[hintIdx%remaining.length]; hintIdx++;
+  const sol=solutions[word];
+  const line=[];
+  for (let i=0;i<sol.len;i++) line.push({r:sol.r+i*sol.dr,c:sol.c+i*sol.dc});
+  markFound(word,line);
+  // flash chip
+  chips[word].classList.add('hint-hl');
+  setTimeout(()=>chips[word].classList.remove('hint-hl'),1800);
+}
+
+function resetGame() {
+  foundWords.clear(); colorIdx=0;
+  for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) {
+    cells[r][c].className='cell';
+  }
+  for (const w of placed) chips[w].classList.remove('done');
+  document.getElementById('cnt').textContent='0';
+  document.getElementById('congrats').style.display='none';
+  if (mode==='solution') applySolution();
+}
+</script>
+</body>
+</html>
